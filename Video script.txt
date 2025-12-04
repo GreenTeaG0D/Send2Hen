@@ -1,0 +1,63 @@
+##INTRO
+
+This notebook is adapted from 3 seperate python files I wrote (all of them are in the github) which go over ingest, modelling, and analysis.
+To make it easier to show you specific parts of the code I will do the presentation mainly on the seperate files and then show the full notebook at the end.
+
+
+##INGEST
+This is the ingest, where the xls file is preppared for training.
+First I remove any unneccesary columns (indexes, unnamed columns, etc).
+
+Next columns with missing values are handled;
+If more than 10% of the values are missing then the column is deemed to be too innaccurate as the number of KNN/Mean fills would be too high and potentially skew results.
+If between 5% and 10% of the values are missing then I either KNN fill for numerics or do mode impute for categorical.
+If less than 5% of the rows are missing then the affected rows are dropped, this is because we don't want to fill with KNNs unless not doing so would negatively affect the end size.
+
+Then comes type checking;
+I simply check if Strings or Floats are meant to be Ints, if date like objects are meant to be date times, one-hot encode nominal categories, and try to cast ints to categories (to help with limited memory)
+
+Next is the anomaly detection where I simply remove any results outside of the IQR boundaries or outside of 2-S.D and then change any results in top/bottom 1% to be more centred.
+This gives me a relatively tight grouping without cutting too many results or affecting the output.
+In this step I also group the "rare" rows (eg: weird but not invalid) into an "other" category, testing showed this worked slightly better than just cutting them.
+
+Now it's the derived features - the columns that are calculated as a result of others; these include total bills paid, average bill, total outstanding, and several other fields.
+
+Finally there's the summary, this checks for missing fields, minimum table size, class imbalance, stratify/split/scale/smote.
+For scaling, if there were previously anomalises then robustscale is used, otherwise just regular.
+
+
+##MODELS
+Here is the beauty of the beast, the model training section.
+I implemented five model approaches - Logistic Regression, Random Forest, Gradient Boosting Trees, a traditional Neural Network, and a stack (LR+RF+GB).
+I also implemented both RandomisedSearchCV for a rough first check on large scale hyperparameters, and then GridSearchCV for smaller regions within that had been found as most important.
+
+Each model is first tuned randomly for the same number of cycles (to maintain fairness), the tuning works off of the "winner stays on" evolutionary principle.
+After its initial rough tune, GridSearch is used for a higher quality search to find the optimal result within the region.
+I believe this implementation has the benefits of both a heuristic and a greedy approach, this is because while you may loose out on the absolute best approach due to bad RNG in the randomsearch, you will still get a good result and can massively reduce tuning times.
+
+The models are then evaluated - this process returns a host of different key information like the roc-auc, f1, and confusion matrix.
+
+The hyperparameter config section was mostly based off of scikit-learn defaults, an interesting paper I read while researching for the literature review, and simple manual changes to try and see what gets the best results - though the models take about 10 mins to train each time so I have only done around 20 different versions.
+
+Next, the most important features are found - this is important for later analysis - and the least important features are dropped to reduce processing times.
+
+In the end, this section gives four seperate models, and a stack which allow for various attempts analyses to be conducted.
+
+
+##Analysis
+And speaking of analysis... 
+Several key factors are analysed here:
+The opportunity cost/reward of giving a loan, the default probability, a cross validated result (to lower overfitting risk),
+a statistical comparison (using both mcnear and paired t-test), and a variety of graphs/plotting which I will showcase now.
+
+
+##Graphs
+I won't talk about all the graphs since we'd be here for hours, but it includes a shap bar, shap summary, and feature importance for each model.
+Generally Pay_0 (no overdraft in current month) is most strongly related lower default rates,
+though interestingly logistic regression completely flips the script and focussess more on the socio-half of socioeconomic factors
+(school history and partner ships being the most important with current debt being relatively low).
+
+
+##Notebook
+To get back to the notebook, I hope this has shown that I have properly sourced, cleaned, and validated a large data source,
+as well as having trained 4 seperate models and a stack. 

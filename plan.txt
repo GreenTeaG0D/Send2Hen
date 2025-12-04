@@ -1,0 +1,94 @@
+6001 CMD:
+** Look further into OpenSearch **
+** Look into datadog **
+
+Task 1:
+SECTION 1: Identification
+	- Identify real world problem
+		- Given a customers demographic, credit, and payment history, predict their default rate for the coming month.
+		- This is directly relevant to insurance and risk management (Idea attribution: Vlad Login, SWE @ Admiral)
+	- Select dataset(s)
+		- Default of Credit Card Clients, UCI Machine Learning Repository
+		- Publically available, ~30,000 records, and ~23 features
+			- Ample breadth and depth (>2500), and not scikit-learn/kraggle only
+
+SECTION 2: Prep and Infrastructure
+	- Analyse the data set and pre-process
+		- Initial load & checks
+			- Read provided csv
+			- Print df.info, df.describe, df.head, df.tail
+			- Confirm size roughly 30,000
+		- Remove unneccesary columns
+			- Eg; Indexes no longer required
+		- Check missing values
+			- Use df.isna().sum() to count null instances
+				- If insignificant count, just drop them
+				- If numeric, either fill with mean or SKL K-NN
+				- If categorical, impute with mode answer
+				- If one column has too many missing instances, check if it's more accurate to simply drop the columm
+		- Correct types and encoding
+			- One-Hot nomial categories (extracts multi-choice into series of booleans, best provided ordering deoesn't matter - think of it as a series of "is X/Y/Z?")
+			- Ordinal encode payment status (best as order does matter - think of it as a sliding scale)
+			- Float -> Int
+			- String -> Int (Where applicible)
+			- Int -> Category (Where applicable)
+			- Date(ish) -> Date-time
+		- Anonaly detection
+			- Find and remove anomalous results (2-SD, IQR, Boxplot, winsorize)
+			- Group rare values into "Other" (eg: all rows where payment_type is weird but not wrong are handled here)
+		- QOL Features
+			- Create columns for agg. values (total_bills_paid_to_date, avg_bill, total_in_processing, amortised_debt)
+			- Temporal feature sets (how close to deadline are bills paid, how overdue on average, etc)
+			- Credit utilisation (overdraft_limit / overdraft_current)
+		- Scaling
+			- If* model requires scaling, apply either standard or robust scaling (robust if anomalies present)
+				- *Tree models don't need scaling
+		- Class balance
+			- Address bias within data set (>75% non-default) which could lead to model learning only the dominant results traits and still getting (allegedly) high accuracy
+				- This is addressed by adding a normalisation factor to artificially train the model more on edge cases
+				- Otherwise minority results will be missed - in this case, it would lower the default rate prediction (especially for the worst cases)
+			- Implement with stratified splits, stratified K-fold CV, (class_weight = balanced for LR/SVM,) and SMOTE on training data
+		- Train/Test split
+			- Use train_test_split with stratified splits parsed in
+		- Ensure cleaned dataset is still large enough
+			- Min. req. 2,500
+			- Approx. 30,000}
+
+SECTION 3: Models
+	- Ideally want to use Linear, Tree, Advanced Learner as it gives a good balance and shows a breadth of techniques
+		- Log.Reg.
+			- L2 Penalty, solver: liblinear or saga, class_weight = balanced if imbalance significant (>60:40)
+		- Rand.Frst.
+			- Good baseline
+		- Grdnt.Bst.Tree
+			- Good for heterogenous features, built-in regularisation and missing-value handling
+			- Prone to overfitting but can be mitigated
+		- Neural Network (deep learning)
+			- Use as a comparison to show classic methods often beat simple neural nets on tabular data.
+	- Tune models
+		- Use Stratified K-Fold CV for robustness 
+		- Use RandomisedSearchCV for broad hyperparameter search, then GridSearchCV to refine target region
+			- Hyperparameter ≈ Heuristic
+		- Evaluate validation using ROC-AUC and F1 to choose most effective hyperparameter
+	- Possible advancements
+		- Stacking
+			- Random Forest + XGBoost + Log.Reg for best result
+			- Calibrate models using CalibratedClassifierCV if you need reliable P-outputs
+			- Use L1/SHAP/Permuation importance to drop negligible features and reduce overfitting
+
+SECTION 4: Analysis
+	- ROC-AUC -> Overall discrimiation
+	- Precision/Recall/F1 -> important when default result is minority or false negative is costly (this usecase)
+	- PR-AUC -> like ROC-AUC but higher efficacy with class imbalance
+	- Confusion Matrix -> F.Pos / F.Neg
+	- Brier Score -> Probibalistic result
+	- cost analysis -> Business cost of investment (potential writeoff vs potential payback)
+
+META:
+	- Procedure:
+		- Same stratified CV folds for fairness
+		- Compare ROC-AUC vs PR-AUC, report mean +- std
+		- Use McNemar's test & paired-T test on a per-fold basis to statistically test different models/classifiers
+		- Present feature importances and SHAP value plots to both interpret and verify factors affecting default
+	- Citation:
+		Yeh, I. (2009). Default of Credit Card Clients [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C55S3H.
